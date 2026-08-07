@@ -104,4 +104,85 @@ mod test {
         let result = main_handler(&mock, "test-table".to_string()).await;
         assert!(result.is_err());
     }
+
+    #[cfg(feature = "ministack")]
+    #[tokio::test]
+    async fn test_main_handler_active_ministack() {
+        let table_name = "test-table";
+        let config =
+            aws_config::defaults(aws_config:: BehaviorVersion::latest())
+                .test_credentials()
+                .endpoint_url("http://host.docker.internal:4566")
+                .region(aws_config::Region::new("us-east-1"))
+                .load()
+                .await;
+        let client = aws_sdk_dynamodb::Client::new(&config);
+        let dynamodb_operator = DynamoDBImpl::new(client);
+        dynamodb_operator
+            .client
+            .create_table()
+            .table_name(table_name)
+            .attribute_definitions(
+                aws_sdk_dynamodb::types::AttributeDefinition::builder()
+                    .attribute_name("id")
+                    .attribute_type(
+                        aws_sdk_dynamodb::types::ScalarAttributeType::S,
+                    )
+                    .build()
+                    .unwrap(),
+            )
+            .key_schema(
+                aws_sdk_dynamodb::types::KeySchemaElement::builder()
+                    .attribute_name("id")
+                    .key_type(aws_sdk_dynamodb::types::KeyType::Hash)
+                    .build()
+                    .unwrap(),
+            )
+            .provisioned_throughput(
+                aws_sdk_dynamodb::types::ProvisionedThroughput::builder()
+                    .read_capacity_units(5)
+                    .write_capacity_units(5)
+                    .build()
+                    .unwrap(),
+            )
+            .send()
+            .await
+            .unwrap();
+        
+        let mut nn = 0;
+        loop {
+            let status = dynamodb_operator
+                .client
+                .describe_table()
+                .table_name(table_name)
+                .send()
+                .await
+                .unwrap()
+                .table
+                .and_then(|table| table.table_status)
+                .and_then(|status| Some(status.as_str().to_string()))
+                .unwrap_or_default();
+            if status == "ACTIVE" {
+                break;
+            }
+            nn += 1;
+            if nn > 10 {
+                panic!("Table did not become ACTIVE in time");
+            }
+        }
+
+        let result = main_handler(&dynamodb_operator, table_name.to_string())
+            .await
+            .unwrap();
+
+        dynamodb_operator
+            .client
+            .delete_table()
+            .table_name(table_name)
+            .send()
+            .await
+            .unwrap();
+        
+        assert_eq!(result, "OK");
+    }
 }
