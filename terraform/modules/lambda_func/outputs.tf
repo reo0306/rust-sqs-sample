@@ -1,4 +1,4 @@
-utput "lambda_function_name" {
+output "lambda_function_name" {
   # 関数名
   value = aws_lambda_function.this.function_name
 }

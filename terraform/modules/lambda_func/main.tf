@@ -1,7 +1,7 @@
 locals {
   # アセットが格納されているS3バケット名のデフォルト値
   # 環境に合わせて修正してください
-  default_s3_bucket = "${var.stage}-lambda-deploy-rust3"
+  default_s3_bucket = "${var.stage}-lambda-deploy-rust-ts"
 
   # var.s3_bucketが指定されていればそれを使い、
   # 指定されていなければデフォルトの バケット名を使う
@@ -111,7 +111,7 @@ resource "aws_lambda_function" "this" {
   function_name = local.function_name
   s3_bucket     = data.aws_s3_object.lambda_asset.bucket
   s3_key        = data.aws_s3_object.lambda_asset.key
-  code_sha256   = data.aws_s3_object.lambda_asset.checksum_sha256
+  source_code_hash = data.aws_s3_object.lambda_asset.checksum_sha256
   handler       = var.handler
   runtime       = var.runtime
   role          = aws_iam_role.lambda_role.arn
