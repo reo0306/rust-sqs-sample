@@ -1,0 +1,22 @@
+
+[config]
+skip_core_tasks = true
+
+[tasks.build]
+script = "cargo lambda build --arm64 --release --output-format zip"
+
+[tasks.s3push.env]
+STAGE = {script = ["echo ${STAGE:?}"]}
+BUCKET = "${STAGE}-lambda-deploy-rust-ts"
+NAME = {script = ["basename `pwd`"]}
+
+[tasks.s3push]
+script = '''
+    aws s3api put-object \
+    --bucket ${BUCKET} \
+    --key ${NAME}/bootstrap.zip \
+    --body target/lambda/${NAME}/bootstrap.zip \
+    --checksum-algorithm sha256
+'''
+dependencies = ["build"]
+
